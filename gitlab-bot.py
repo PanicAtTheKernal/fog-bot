@@ -5,6 +5,38 @@ from schema import Optional, And, Or, Schema, SchemaError
 import yaml
 from yaml.scanner import ScannerError
 
+class GitlabHandler:
+    _token: str
+    _url: str
+    _client = None
+    _project_id = None
+
+    def __init__(self, token:str, url:str):
+        self._token = token
+        self._url = url
+
+    def connect(self):
+        self._client = gitlab.Gitlab(private_token=self._token, url=self._url)
+
+    def set_project_id(self, project_id):
+        self._project_id = project_id
+
+    def get_client(self):
+        return self._client
+
+    def get_issues(self):
+        if self._client is not None and self._project_id is not None:
+            pass
+
+
+class GitlabIssues:
+    __labels: [str] = [""]
+    __state: str = ""
+    __order_by: str = ""
+    __sort: str = ""
+
+    def __init__(self, labels: [str], state: [str] , order_by: str, sort: str):
+        pass
 
 def login_to_gitlab():
     load_dotenv()
@@ -79,7 +111,7 @@ def validate_yaml(issue, project):
         print_note(issue, project, message, label)
 
 def create_merge_request():
-
+    pass
 
 def check_for_space(tag: str) -> bool:
     if tag.find(" ") == -1:
