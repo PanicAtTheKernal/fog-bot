@@ -5,13 +5,29 @@ from schema import Optional, And, Or, Schema, SchemaError
 import yaml
 from yaml.scanner import ScannerError
 
+
+class GitlabBot:
+    __token = ""
+    __url = ""
+
+    def __init__(self, url: str):
+        load_dotenv()
+        self.__token = os.getenv('BOTTOKEN')
+        self.__url = url
+
+    def start(self):
+        gitlab_handler = GitlabHandler(self.__token, self.__url)
+        gitlab_handler.connect()
+        return gitlab_handler
+
+
 class GitlabHandler:
     _token: str
     _url: str
     _client = None
     _project_id = None
 
-    def __init__(self, token:str, url:str):
+    def __init__(self, token: str, url: str):
         self._token = token
         self._url = url
 
@@ -37,6 +53,15 @@ class GitlabIssues:
 
     def __init__(self, labels: [str], state: [str] , order_by: str, sort: str):
         pass
+
+
+class GitlabMergeRequest:
+    pass
+
+
+class YamlValidator:
+    pass
+
 
 def login_to_gitlab():
     load_dotenv()
