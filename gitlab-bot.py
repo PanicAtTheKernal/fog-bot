@@ -10,9 +10,9 @@ class GitlabBot:
     __token = ""
     __url = ""
 
-    def __init__(self, url: str):
+    def __init__(self, token_name: str, url: str):
         load_dotenv()
-        self.__token = os.getenv('BOTTOKEN')
+        self.__token = os.getenv(token_name)
         self.__url = url
 
     def start(self):
@@ -40,9 +40,9 @@ class GitlabHandler:
     def get_client(self):
         return self._client
 
-    def get_issues(self):
-        if self._client is not None and self._project_id is not None:
-            pass
+    def create_issue_handler(self, labels: [str], state: [str], order_by: str, sort: str):
+        if self._client != None:
+
 
 
 class GitlabIssues:
@@ -50,10 +50,33 @@ class GitlabIssues:
     __state: str = ""
     __order_by: str = ""
     __sort: str = ""
+    __issues = []
+    __project_id = ""
+    __project = None
 
-    def __init__(self, labels: [str], state: [str] , order_by: str, sort: str):
-        pass
+    def __init__(self, project_id, labels: [str], state='opened', order_by='created_at', sort='desc'):
+        self.__labels = labels
+        self.__state = state
+        self.__order_by = order_by
+        self.__sort = sort
+        self.__project_id = project_id
 
+    def request_issues(self, client):
+        if self.__project is None:
+            self.__project = client.project.get(id=self.__project_id)
+        self.__issues = self.__project.issues.list(labels=self.__labels,
+                                                   state=self.__state,
+                                                   order_by=self.__order_by,
+                                                   sort=self.__sort)
+
+    def get_issues(self):
+        return self.__issues
+
+    def set_labels(self, new_labels: [str]):
+        self.__labels = new_labels
+
+    def get_labels(self):
+        return self.__labels
 
 class GitlabMergeRequest:
     pass
@@ -181,3 +204,4 @@ if __name__ == '__main__':
     # print(issues)
 
     # user.delete()
+_
