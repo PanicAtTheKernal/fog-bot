@@ -40,13 +40,13 @@ class GitlabAPIHandler:
     def get_client(self):
         return self._client
 
-    def create_issue_handler(self, labels: [str], state='opened', order_by='created_at', sort='desc'):
+    def create_issue_handler(self, labels: list[str], state='opened', order_by='created_at', sort='desc'):
         if self._client is not None:
             return GitlabIssues(self._client, self._project_id, labels, state, order_by, sort)
 
 
 class GitlabIssues:
-    __labels: [str] = [""]
+    __labels: list[str] = [""]
     __state: str = ""
     __order_by: str = ""
     __sort: str = ""
@@ -55,7 +55,7 @@ class GitlabIssues:
     __project = None
     __client = None
 
-    def __init__(self, client, project_id, labels: [str], state='opened', order_by='created_at', sort='desc'):
+    def __init__(self, client, project_id, labels: list[str], state='opened', order_by='created_at', sort='desc'):
         self.__labels = labels
         self.__state = state
         self.__order_by = order_by
@@ -85,7 +85,7 @@ class GitlabIssues:
     def get_issues(self):
         return self.__issues
 
-    def set_labels(self, new_labels: [str]):
+    def set_labels(self, new_labels: list[str]):
         self.__labels = new_labels
 
     def get_labels(self):
@@ -93,39 +93,82 @@ class GitlabIssues:
 
 
 class GitlabMergeRequest:
-    __ref_branch = 'main'
     __target_branch = 'main'
     __yaml_obj = None
     __issue = None
+    __project = None
+    __id: str
+    __ref_branch: str
 
-    def __init__(self, yaml_obj, issue):
+    def __init__(self, yaml_obj, issue, project, ref_branch):
         self.__yaml_obj = yaml_obj
         self.__issue = issue
+        self.__project = project
+        self.__id = self.__yaml_obj["id"]
+        self.__ref_branch = ref_branch
 
     def create_merge_request(self):
-        pass
+        branch = GitlabBranches(self.__project, self.__ref_branch)
+        if branch.search_for_branch() is Not
 
-    def create_new_branch(self):
-        pass
+    def retrieve_merge_request(self):
+        merge_requests = self.__project.mergerequsts.list()
+
+        for merge_request in merge_requests:
+            print(merge_request)
+
+        return merge_requests
+
+
+class GitlabBranches:
+    __project = None
+    __ref_branch: str
+    __id: str
+
+    def __init__(self, project, ref_branch, id):
+        self.__project = project
+        self.__ref_branch = ref_branch
+        self.__id = id
+
+    def create_new_branch(self) -> bool:
+        try:
+            self.__project.branches.create({'branch': '{}'.format(id_yaml),
+                                     'ref': 'Empty'})
+            return True
+        except gitlab.GitlabCreateError:
+            print("Branch exists")
+            return False
+
+    def search_for_branch(self):
+        return self.__project.branches.list(search=self.__id)
+
+class GitlabCommits:
+    __yaml_obj = None
+    __project = None
+
+    def __init__(self, yaml_obj, project):
+        self.__yaml_obj = yaml_obj
+        self.__project = project
 
     def create_data(self):
-        file = open("{}.yml".format(self.__yaml_obj['id']))
-        yaml.dump(self.__yaml_obj, file)
-        file.close()
+        with open("{}.yml".format(self.__yaml_obj['id'])) as file:
+            yaml.dump(self.__yaml_obj, file)
 
-        data = {
-            'branch': '{}'.format(self.__yaml_obj['id']),
-            'commit_message': 'Commit for profile request {}'.format(self.__issue["id"]),
-            'actions': [
-                {
-                    'action': 'create',
-                    'file_path': '{}.yml'.format(self.__yaml_obj['id']),
-                    'content': open('{}.yml'.format(self.__yaml_obj['id'])).read(),
-                }
-            ]
-        }
+            return {
+                'branch': '{}'.format(self.__yaml_obj['id']),
+                'commit_message': 'Commit for profile request {}'.format(self.__issue["id"]),
+                'actions': [
+                    {
+                        'action': 'create',
+                        'file_path': '{}.yml'.format(self.__yaml_obj['id']),
+                        'content': open('{}.yml'.format(self.__yaml_obj['id'])).read(),
+                    }
+                ]
+            }
 
-        return data
+    def commit(self, data):
+        self.__project.commits.create(data)
+        os.remove(str(self.__yaml_obj["id"])+'.yml')
 
 
 class YamlValidator:

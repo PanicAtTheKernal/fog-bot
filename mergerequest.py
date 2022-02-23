@@ -22,61 +22,62 @@ def get_current_issues(gl):
 
 if __name__ == '__main__':
     gl = login_to_gitlab()
-    # issue_description = get_current_issues(gl)
-    conf_yaml = """
-        id: test5
-        name: Jane Doe
-        nick: Elsadfh
-        pronoun: she/her
-        bio: I'm the best in the world lol
-        country: 🤴🏿
-        avatar: none
-        badges: contributor
-        social: 
-            gitlab: gamerEpic445
-        """
-    try:
-        configuration = yaml.safe_load(conf_yaml)
-        id_yaml = configuration["id"]
-        project = gl.projects.get(id=os.getenv('BOTPROJECT'))
-        project_user = gl.projects.get(id=os.getenv('USERPROJECT'))
+    pro = gl.projects.get(id=os.getenv())
+     # conf_yaml = """
+     #    id: test5
+     #    name: Jane Doe
+     #    nick: Elsadfh
+     #    pronoun: she/her
+     #    bio: I'm the best in the world lol
+     #    country: 🤴🏿
+     #    avatar: none
+     #    badges: contributor
+     #    social:
+     #        gitlab: gamerEpic445
+     #    """
+    # try:
+        # configuration = yaml.safe_load(conf_yaml)
+        # id_yaml = configuration["id"]
+        # project = gl.projects.get(id=os.getenv('BOTPROJECT'))
+        # project_user = gl.projects.get(id=os.getenv('USERPROJECT'))
 
-        for merge_request in project_user.mergerequests.list():
-            print(merge_request)
-        try:
-            branch = project.branches.create({'branch': '{}'.format(id_yaml),
-                                              'ref': 'Empty'})
-        except gitlab.GitlabCreateError:
-            print("Branch exists")
-
-        file = open("{}.yml".format(id_yaml), "w")
-        yaml.dump(configuration, file)
-        file.close()
-
-        data = {
-            'branch': '{}'.format(id_yaml),
-            'commit_message': 'Commit for profile request {}'.format("THE ID OF THE ISSUE"),
-            'actions': [
-                {
-                    'action': 'create',
-                    'file_path': '{}.yml'.format(configuration["id"]),
-                    'content': open('{}.yml'.format(configuration["id"])).read(),
-                }
-            ]
-        }
-        commit = project.commits.create(data)
-        os.remove(str(id_yaml)+'.yml')
-
-        try:
-            mr = project.mergerequests.create({'source_branch': str(id_yaml),
-                                               'target_branch': 'main',
-                                               'target_project_id': int(os.getenv('USERPROJECT')),
-                                               'source_project_id': int(os.getenv('BOTPROJECT')),
-                                               'title': 'Profile request {}'.format(random.randint(0, 100))})
-        except gitlab.GitlabCreateError:
-            print("A merge request already exists")
-    except ScannerError as error:
-        print(error)
+        # debug
+    #     for merge_request in project_user.mergerequests.list():
+    #         print(merge_request)
+    #     try:
+    #         branch = project.branches.create({'branch': '{}'.format(id_yaml),
+    #                                           'ref': 'Empty'})
+    #     except gitlab.GitlabCreateError:
+    #         print("Branch exists")
+    #
+    #     file = open("{}.yml".format(id_yaml), "w")
+    #     yaml.dump(configuration, file)
+    #     file.close()
+    #
+    #     data = {
+    #         'branch': '{}'.format(id_yaml),
+    #         'commit_message': 'Commit for profile request {}'.format("THE ID OF THE ISSUE"),
+    #         'actions': [
+    #             {
+    #                 'action': 'create',
+    #                 'file_path': '{}.yml'.format(configuration["id"]),
+    #                 'content': open('{}.yml'.format(configuration["id"])).read(),
+    #             }
+    #         ]
+    #     }
+    #     commit = project.commits.create(data)
+    #     os.remove(str(id_yaml)+'.yml')
+    #
+    #     try:
+    #         mr = project.mergerequests.create({'source_branch': str(id_yaml),
+    #                                            'target_branch': 'main',
+    #                                            'target_project_id': int(os.getenv('USERPROJECT')),
+    #                                            'source_project_id': int(os.getenv('BOTPROJECT')),
+    #                                            'title': 'Profile request {}'.format(random.randint(0, 100))})
+    #     except gitlab.GitlabCreateError:
+    #         print("A merge request already exists")
+    # except ScannerError as error:
+    #     print(error)
 
 
 
