@@ -11,38 +11,44 @@ class GitlabBot:
     __url = ""
 
     def __init__(self, token_name: str, url: str):
+        self.gitlab_handler = None
         load_dotenv()
         self.__token = os.getenv(token_name)
         self.__url = url
 
     def start(self):
-        gitlab_handler = GitlabAPIHandler(self.__token, self.__url)
-        gitlab_handler.connect()
-        return gitlab_handler
+        self.gitlab_handler = GitlabAPIHandler(self.__token, self.__url)
+        self.gitlab_handler.connect()
 
 
 class GitlabAPIHandler:
     _token: str
     _url: str
-    _client = None
     _project_id = None
 
     def __init__(self, token: str, url: str):
+        self._client = None
+        self._projects = None
         self._token = token
         self._url = url
 
     def connect(self):
-        self._client = gitlab.Gitlab(private_token=self._token, url=self._url)
+        self._client = gitlab.Gitlab(private_token=os.getenv('USERTOKEN'), url='https://gitlab.com')
 
     def set_project_id(self, project_id):
         self._project_id = project_id
+
+    def create_projects(self):
+        self._projects = self._client.projects.get(id=int(self._project_id))
 
     def get_client(self):
         return self._client
 
     def create_issue_handler(self, labels: list[str], state='opened', order_by='created_at', sort='desc'):
-        if self._client is not None:
+        if self._client is not None or self._project_id != '':
             return GitlabIssues(self._client, self._project_id, labels, state, order_by, sort)
+        else:
+            print("Error!")
 
 
 class GitlabIssues:
@@ -62,10 +68,9 @@ class GitlabIssues:
         self.__sort = sort
         self.__project_id = project_id
         self.__client = client
+        self.__project = self.__client.projects.get(id=int(self.__project_id))
 
     def request_issues(self):
-        if self.__project is not None:
-            self.__project = self.__client.project.get(id=self.__project_id)
         self.__issues = self.__project.issues.list(labels=self.__labels,
                                                    state=self.__state,
                                                    order_by=self.__order_by,
@@ -73,7 +78,11 @@ class GitlabIssues:
 
     def validate_issues(self):
         for issue in self.__issues:
-            YamlValidator(issue).validate_yaml(self)
+            yaml_result = YamlValidator(issue).validate_yaml(self)
+            if yaml_result is not None:
+                ref = 'Profile-Request-{}'.format(str(issue.attributes['id']))
+                mr = GitlabMergeRequest(yaml_result, issue, self.__project, ref, os.getenv('USERPROJECT'))
+                mr.create_merge_request()
 
     def print_comment(self, issue, message, labels):
         issue_t = self.__project.issues.get(issue.attributes['iid'])
@@ -99,17 +108,32 @@ class GitlabMergeRequest:
     __project = None
     __id: str
     __ref_branch: str
+    __target_project_id = ""
+    __source_project_id = ""
 
-    def __init__(self, yaml_obj, issue, project, ref_branch):
+    def __init__(self, yaml_obj, issue, project, source_branch, target_id):
         self.__yaml_obj = yaml_obj
         self.__issue = issue
         self.__project = project
-        self.__id = self.__yaml_obj["id"]
-        self.__ref_branch = ref_branch
+        self.__id = issue.attributes['id']
+        self.__source_branch = source_branch
+        self.__target_project_id = target_id
 
     def create_merge_request(self):
-        branch = GitlabBranches(self.__project, self.__ref_branch)
-        if branch.search_for_branch() is Not
+        branch = GitlabBranches(self.__project, "main", self.__id)
+        if branch.search_for_branch() is not []:
+            branch.create_new_branch()
+        try:
+            commit = GitlabCommits(self.__yaml_obj, self.__project, self.__id)
+            data = commit.create_data()
+            commit.commit(data)
+            self.__project.mergerequests.create({'source_branch': self.__source_branch,
+                                                 'target_branch': self.__target_branch,
+                                                 'target_project_id': int(self.__target_project_id),
+                                                 'source_project_id': int(self.__target_project_id),
+                                                 'title': 'Profile request #{}'.format(self.__id)})
+        except gitlab.GitlabCreateError as error:
+            print(error)
 
     def retrieve_merge_request(self):
         merge_requests = self.__project.mergerequsts.list()
@@ -125,38 +149,40 @@ class GitlabBranches:
     __ref_branch: str
     __id: str
 
-    def __init__(self, project, ref_branch, id):
+    def __init__(self, project, ref_branch, issue_id):
         self.__project = project
         self.__ref_branch = ref_branch
-        self.__id = id
+        self.__id = issue_id
 
     def create_new_branch(self) -> bool:
         try:
-            self.__project.branches.create({'branch': '{}'.format(id_yaml),
-                                     'ref': 'Empty'})
+            self.__project.branches.create({'branch': 'Profile-Request-{}'.format(self.__id),
+                                            'ref': self.__ref_branch})
             return True
-        except gitlab.GitlabCreateError:
-            print("Branch exists")
+        except gitlab.GitlabCreateError as error:
+            print(error)
             return False
 
     def search_for_branch(self):
-        return self.__project.branches.list(search=self.__id)
+        return self.__project.branches.list(search='Profile-Request-{}'.format(self.__id))
+
 
 class GitlabCommits:
     __yaml_obj = None
     __project = None
 
-    def __init__(self, yaml_obj, project):
+    def __init__(self, yaml_obj, project, issue_id):
         self.__yaml_obj = yaml_obj
         self.__project = project
+        self.__issue_id = issue_id
 
     def create_data(self):
-        with open("{}.yml".format(self.__yaml_obj['id'])) as file:
+        with open("{}.yml".format(self.__yaml_obj['id']), 'w+') as file:
             yaml.dump(self.__yaml_obj, file)
 
             return {
-                'branch': '{}'.format(self.__yaml_obj['id']),
-                'commit_message': 'Commit for profile request {}'.format(self.__issue["id"]),
+                'branch': 'Profile-Request-{}'.format(self.__issue_id),
+                'commit_message': 'Commit for profile request {}'.format(self.__yaml_obj["id"]),
                 'actions': [
                     {
                         'action': 'create',
@@ -217,35 +243,35 @@ class YamlValidator:
         self.__issue = issue
         self.__issue_description = issue.attributes['description']
 
-    def validate_yaml(self, gitlab_issue_handler: GitlabIssues)-> bool:
+    def validate_yaml(self, gitlab_issue_handler: GitlabIssues):
         try:
             valid_yaml = yaml.safe_load(self.__issue_description)
             return self.__validate_schema(valid_yaml, gitlab_issue_handler)
         except ScannerError as error:
             print(error)
             message = 'There is a @ symbol in the issues, please remove it.'
-            label = 'Changes Requested'
-            gitlab_issue_handler.print_comment(self.__issue, message, label)
-            return False
+            label_t = 'Changes Requested'
+            gitlab_issue_handler.print_comment(self.__issue, message, label_t)
+            return None
 
-    def __validate_schema(self, yaml_obj: object, gitlab_issue_handler: GitlabIssues)-> bool:
+    def __validate_schema(self, yaml_obj: object, gitlab_issue_handler: GitlabIssues):
         try:
             self.__config_schema.validate(yaml_obj)
             print("Configuration is valid.")
             message = "A merge request has been created for you. Please wait for a moderator to accept your user " \
                       "profile"
-            label = "Request created"
-            gitlab_issue_handler.print_comment(self.__issue, message, label)
-            return True
+            label_t = "Request Created"
+            gitlab_issue_handler.print_comment(self.__issue, message, label_t)
+            return yaml_obj
         except SchemaError as se:
             print(se)
             message = str(se)
-            label = 'Changes Requested'
-            gitlab_issue_handler.print_comment(self.__issue, message, label)
-            return False
+            label_t = 'Changes Requested'
+            gitlab_issue_handler.print_comment(self.__issue, message, label_t)
+            return None
 
 
-def check_for_space( tag: str) -> bool:
+def check_for_space(tag: str) -> bool:
     if tag.find(" ") == -1:
         return True
     print("Make sure that '" + tag + "' does not contain any whitespace")
@@ -260,4 +286,10 @@ def check_for_at_symbol(tag: str) -> bool:
 
 
 if __name__ == '__main__':
-    pass
+    fogbot = GitlabBot(str(os.getenv('USERTOKEN')), url='https://gitlab.com')
+    fogbot.start()
+    fogbot.gitlab_handler.set_project_id(33046772)
+    label = ['Profile Request']
+    fogbot_issues = fogbot.gitlab_handler.create_issue_handler(label)
+    fogbot_issues.request_issues()
+    fogbot_issues.validate_issues()

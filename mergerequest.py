@@ -10,7 +10,7 @@ from yaml.scanner import ScannerError
 
 def login_to_gitlab():
     load_dotenv()
-    gl_t = gitlab.Gitlab(private_token=os.getenv('BOTTOKEN'), url='https://gitlab.com')
+    gl_t = gitlab.Gitlab(private_token=os.getenv('USERTOKEN'), url='https://gitlab.com')
     return gl_t
 
 
@@ -22,7 +22,10 @@ def get_current_issues(gl):
 
 if __name__ == '__main__':
     gl = login_to_gitlab()
-    pro = gl.projects.get(id=os.getenv())
+    pro = gl.projects.list(owned=True)
+    print(pro)
+    # print(pro.branches.list(search="23c"))
+
      # conf_yaml = """
      #    id: test5
      #    name: Jane Doe
