@@ -1,7 +1,29 @@
+import abc
+
 from schema import Optional, And, Or, Schema, SchemaError
 import yaml
 from yaml.scanner import ScannerError
+import abc
 
+
+class Interface1(abc.ABC):
+    @abc.abstractmethod
+    def test(self):
+        pass
+
+
+class Interface2(abc.ABC):
+    @abc.abstractmethod
+    def print(self):
+        pass
+
+
+class Test(Interface1, Interface2):
+    def test(self):
+        print("test")
+
+    def print(self):
+        print("print")
 """
 id: epic-user
 name: John Doe
