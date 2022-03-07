@@ -13,6 +13,7 @@ cache:
     - .cache/pip
     - venv/
 
+
 before_script:
   - python --version  # For debugging
   - pip install virtualenv
@@ -23,6 +24,8 @@ before_script:
   - pip install schema
 
 process_issues:
+  variables:
+    API_TOKEN: $API_TOKEN
   image: python:latest
   tags:
     - gitlab-org
