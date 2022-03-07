@@ -1,6 +1,6 @@
 import gitlab
 import os
-from dotenv import load_dotenv
+import sys
 from schema import Optional, And, Or, Schema, SchemaError
 import yaml
 from yaml.scanner import ScannerError
@@ -10,10 +10,9 @@ class GitlabBot:
     __token = ""
     __url = ""
 
-    def __init__(self, token_name: str, url: str):
+    def __init__(self, url: str):
         self.gitlab_handler = None
-        load_dotenv()
-        self.__token = os.getenv(token_name)
+        self.__token = sys.argv[1]
         self.__url = url
 
     def start(self):
@@ -33,7 +32,7 @@ class GitlabAPIHandler:
         self._url = url
 
     def connect(self):
-        self._client = gitlab.Gitlab(private_token=os.getenv('USERTOKEN'), url='https://gitlab.com')
+        self._client = gitlab.Gitlab(private_token=self._token, url=self._url)
 
     def set_project_id(self, project_id):
         self._project_id = project_id
@@ -81,7 +80,8 @@ class GitlabIssues:
             yaml_result = YamlValidator(issue).validate_yaml(self)
             if yaml_result is not None:
                 ref = 'Profile-Request-{}'.format(str(issue.attributes['id']))
-                mr = GitlabMergeRequest(yaml_result, issue, self.__project, ref, os.getenv('USERPROJECT'))
+                api_token = sys.argv[1]
+                mr = GitlabMergeRequest(yaml_result, issue, self.__project, ref, api_token)
                 mr.create_merge_request()
 
     def print_comment(self, issue, message, labels):
@@ -286,9 +286,10 @@ def check_for_at_symbol(tag: str) -> bool:
 
 
 if __name__ == '__main__':
-    fogbot = GitlabBot(str(os.getenv('USERTOKEN')), url='https://gitlab.com')
+    project_id = sys.argv[2]
+    fogbot = GitlabBot(url='https://gitlab.com')
     fogbot.start()
-    fogbot.gitlab_handler.set_project_id(33046772)
+    fogbot.gitlab_handler.set_project_id(project_id)
     label = ['Profile Request']
     fogbot_issues = fogbot.gitlab_handler.create_issue_handler(label)
     fogbot_issues.request_issues()
