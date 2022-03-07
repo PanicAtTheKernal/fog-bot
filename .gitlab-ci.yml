@@ -35,6 +35,7 @@ process_issues:
   image: python:latest
   tags:
     - issues
+    - gitlab-org
   script:
     - python gitlab-bot.py $API_TOKEN $CI_PROJECT_ID
   rules:
