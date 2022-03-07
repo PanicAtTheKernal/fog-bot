@@ -30,7 +30,6 @@ process_issues:
   tags:
     - gitlab-org
   script:
-    - echo "$API_TOKEN $CI_PROJECT_ID"
-    - python gitlab-bot.py $API_TOKEN $CI_PROJECT_ID
+    - python gitlab-bot.py $API_KEY $CI_PROJECT_ID
   rules:
     - if: $CI_PIPELINE_SOURCE == "trigger"
