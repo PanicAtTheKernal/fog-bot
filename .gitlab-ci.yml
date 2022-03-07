@@ -25,11 +25,11 @@ cache:
 before_script:
   - python --version  # For debugging
   - pip install virtualenv
+  - virtualenv venv
+  - source venv/bin/activate
   - pip install PyYAML
   - pip install python-gitlab
   - pip install schema
-  - virtualenv venv
-  - source venv/bin/activate
 
 process_issues:
   image: python:latest
