@@ -80,8 +80,8 @@ class GitlabIssues:
             yaml_result = YamlValidator(issue).validate_yaml(self)
             if yaml_result is not None:
                 ref = 'Profile-Request-{}'.format(str(issue.attributes['id']))
-                api_token = sys.argv[1]
-                mr = GitlabMergeRequest(yaml_result, issue, self.__project, ref, api_token)
+                project_id = sys.argv[2]
+                mr = GitlabMergeRequest(yaml_result, issue, self.__project, ref, project_id)
                 mr.create_merge_request()
 
     def print_comment(self, issue, message, labels):
