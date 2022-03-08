@@ -16,4 +16,4 @@ https://gitlab.com/api/v4/projects/YOUR_PROJECT_ID/ref/REF/trigger/pipeline?toke
 6. Test it by by clicking on the test button on your webhook and click on "issue event". If this is setup correctly then a new job should be started called proccess_issue.
 
 ## License
-This project is licensed under the Creative Commons BY-SA-4.0. Press the link to view the [licence]()
+This project is licensed under the Creative Commons BY-SA-4.0. Press the link to view the [licence](https://github.com/PanicAtTheKernal/fog-bot/blob/main/LICENCE)
