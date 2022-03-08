@@ -38,4 +38,4 @@ process_issues:
   script:
     - python gitlab-bot.py $API_TOKEN $CI_PROJECT_ID
   rules:
-    - if: $CI_PIPELINE_SOURCE == "trigger"
+    - if: $CI_PIPELINE_SOURCE == "trigger" && $ISSUE_BOT
