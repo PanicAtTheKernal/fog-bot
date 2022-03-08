@@ -24,8 +24,6 @@ before_script:
   - pip install schema
 
 process_issues:
-  variables:
-    API_TOKEN: $API_TOKEN
   image: python:latest
   tags:
     - gitlab-org
@@ -33,3 +31,4 @@ process_issues:
     - python gitlab-bot.py $API_KEY $CI_PROJECT_ID
   rules:
     - if: $CI_PIPELINE_SOURCE == "trigger"
+    - if: $ISSUE_BOT == "true"
