@@ -1,9 +1,6 @@
  # FOG-Bot
 This project contains the code for the markdown bot for the Faces of Gnome project. The script vaildates gitlabs issues with "profile request". The script vaildates that the issue follows a [template](https://gitlab.gnome.org/Teams/Engagement/websites/people-of-gnome/-/blob/master/_data/member-template.yml). The script can be stored inside a repo and triggered using Gitlab's CI/CD.
 
-## Project status
-This is a mirror of my Gitlab repo. This is only used as a backup.
-
 ## Installation
 1. Upload gitlab-bot.py to your Gitlab repo.
 2. Insert process issues 
