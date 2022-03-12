@@ -77,11 +77,12 @@ class GitlabIssues:
 
     def validate_issues(self):
         for issue in self.__issues:
-            yaml_result = YamlValidator(issue).validate_yaml(self)
-            if yaml_result is not None:
+            yaml_result = YamlValidator(issue.attributes["description"]).validate_yaml()
+            self.print_comment(issue, yaml_result.message, yaml_result.labels)
+            if yaml_result.success:
                 ref = 'Profile-Request-{}'.format(str(issue.attributes['id']))
                 project_id = sys.argv[2]
-                mr = GitlabMergeRequest(yaml_result, issue, self.__project, ref, project_id)
+                mr = GitlabMergeRequest(yaml_result.yaml_obj, issue, self.__project, ref, project_id)
                 mr.create_merge_request()
 
     def print_comment(self, issue, message, labels):
@@ -197,6 +198,31 @@ class GitlabCommits:
         os.remove(str(self.__yaml_obj["id"])+'.yml')
 
 
+class Response:
+    success: bool
+    message: str
+
+    def __init__(self, success, message) -> None:
+        self.success = success
+        self.message = message
+
+
+class IssueComment(Response):
+    labels: str
+
+    def __init__(self, success: bool, message: str, labels: str) -> None:
+        super().__init__(success, message)
+        self.labels = labels
+
+
+class YamlValidatorReturn(IssueComment):
+    yaml_obj: object
+
+    def __init__(self, success: bool, message: str, labels: str, yaml_obj) -> None:
+        super().__init__(success, message, labels)
+        self.yaml_obj = yaml_obj
+
+
 class YamlValidator:
     __config_schema = Schema({
         "id": And(str, lambda schema_id: check_for_space(schema_id)),
@@ -239,36 +265,35 @@ class YamlValidator:
     __issue_description = ""
     __issue = None
 
-    def __init__(self, issue):
-        self.__issue = issue
-        self.__issue_description = issue.attributes['description']
+    def __init__(self, issue_description: str):
+        self.__issue_description = issue_description
 
-    def validate_yaml(self, gitlab_issue_handler: GitlabIssues):
+    def validate_yaml(self) -> YamlValidatorReturn:
         try:
             valid_yaml = yaml.safe_load(self.__issue_description)
-            return self.__validate_schema(valid_yaml, gitlab_issue_handler)
+            return self.__validate_schema(valid_yaml)
         except ScannerError as error:
             print(error)
             message = 'There is a @ symbol in the issues, please remove it.'
             label_t = 'Changes Requested'
-            gitlab_issue_handler.print_comment(self.__issue, message, label_t)
-            return None
+            new_comment = YamlValidatorReturn(False, message, label_t, None)
+            return new_comment
 
-    def __validate_schema(self, yaml_obj: object, gitlab_issue_handler: GitlabIssues):
+    def __validate_schema(self, yaml_obj: object) -> YamlValidatorReturn:
         try:
             self.__config_schema.validate(yaml_obj)
             print("Configuration is valid.")
             message = "A merge request has been created for you. Please wait for a moderator to accept your user " \
                       "profile"
             label_t = "Request Created"
-            gitlab_issue_handler.print_comment(self.__issue, message, label_t)
-            return yaml_obj
+            return_obj = YamlValidatorReturn(True, message, label_t, yaml_obj)
+            return return_obj
         except SchemaError as se:
             print(se)
             message = str(se)
             label_t = 'Changes Requested'
-            gitlab_issue_handler.print_comment(self.__issue, message, label_t)
-            return None
+            new_comment = YamlValidatorReturn(False, message, label_t, None)
+            return new_comment
 
 
 def check_for_space(tag: str) -> bool:
@@ -286,10 +311,10 @@ def check_for_at_symbol(tag: str) -> bool:
 
 
 if __name__ == '__main__':
-    project_id = sys.argv[2]
+    target_project_id = sys.argv[2]
     fogbot = GitlabBot(url='https://gitlab.com')
     fogbot.start()
-    fogbot.gitlab_handler.set_project_id(project_id)
+    fogbot.gitlab_handler.set_project_id(target_project_id)
     label = ['Profile Request']
     fogbot_issues = fogbot.gitlab_handler.create_issue_handler(label)
     fogbot_issues.request_issues()
