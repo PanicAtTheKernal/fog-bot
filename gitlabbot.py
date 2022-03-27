@@ -1,4 +1,5 @@
 import gitlab
+import gitlab.v4.objects.projects
 import os
 import sys
 from schema import Optional, And, Or, Schema, SchemaError
@@ -7,45 +8,47 @@ from yaml.scanner import ScannerError
 
 
 class GitlabBot:
-    __token = ""
-    __url = ""
+    """This creates a client to access the Gitlab API
 
-    def __init__(self, url: str):
-        self.gitlab_handler = None
-        self.__token = sys.argv[1]
-        self.__url = url
-
-    def start(self):
-        self.gitlab_handler = GitlabAPIHandler(self.__token, self.__url)
-        self.gitlab_handler.connect()
-
-
-class GitlabAPIHandler:
+    Returns:
+        gitlab.Gitlab: A gitlab client used for access to the API
+    """
     _token: str
     _url: str
-    _project_id = None
+    _client: gitlab.Gitlab
 
-    def __init__(self, token: str, url: str):
-        self._client = None
-        self._projects = None
-        self._token = token
-        self._url = url
+    def __init__(self):
+        self.gitlab_handler = None
+        self._token = sys.argv[1]
+        self._url = sys.argv[3]
+        self.start()
 
-    def connect(self):
+    def start(self) -> None:
         self._client = gitlab.Gitlab(private_token=self._token, url=self._url)
 
-    def set_project_id(self, project_id):
-        self._project_id = project_id
-
-    def create_projects(self):
-        self._projects = self._client.projects.get(id=int(self._project_id))
-
-    def get_client(self):
+    def get_client(self) -> gitlab.Gitlab:
         return self._client
 
-    def create_issue_handler(self, labels: list[str], state='opened', order_by='created_at', sort='desc'):
+
+class GitlabAPIHandler(GitlabBot):
+    _project_id: str
+    _project: gitlab.v4.objects.projects.Project
+
+    def __init__(self, project_id: str):
+        super().__init__()
+        self._project_id = project_id
+
+    def get_project_id(self) -> str:
+        return self._project_id
+
+    def retrive_project(self) -> None:
+        self._project = self._client.projects.get(id=int(self._project_id))
+
+    def create_issue_handler(self, labels: list[str], state='opened',
+                             order_by='created_at', sort='desc'):
         if self._client is not None or self._project_id != '':
-            return GitlabIssues(self._client, self._project_id, labels, state, order_by, sort)
+            return GitlabIssues(self._client, self._project_id, labels, state,
+                                order_by, sort)
         else:
             print("Error!")
 
@@ -311,6 +314,7 @@ def check_for_at_symbol(tag: str) -> bool:
 
 
 if __name__ == '__main__':
+    # There sould be 4 arguments. 1. API Key 2. Project ID 3. Project URL 
     target_project_id = sys.argv[2]
     fogbot = GitlabBot(url='https://gitlab.com')
     fogbot.start()
