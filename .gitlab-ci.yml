@@ -31,3 +31,12 @@ process_issues:
     - python gitlabbot.py $API_KEY $CI_PROJECT_ID https://gitlab.com 
   rules:
     - if: $CI_PIPELINE_SOURCE == "trigger" && $ISSUE_BOT
+
+run_unittests: 
+  image: python:3.10-apline3.15
+  tags:
+    - gitlab-org
+  script:
+    - python unit_test.py $API_KEY $CI_PROJECT_ID https://gitlab.com 
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "main"
