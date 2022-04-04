@@ -286,6 +286,7 @@ def check_for_at_symbol(tag: str) -> bool:
 
 
 if __name__ == '__main__':
+    print(sys.argv)
     project_id = sys.argv[2]
     fogbot = GitlabBot(url='https://gitlab.com')
     fogbot.start()
