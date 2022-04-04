@@ -1,0 +1,34 @@
+id: epic-person
+nick: CleanCodeMaster12
+pronoun: he/him
+bio: Like stuff Hate stuff
+country: 🏴‍☠️
+avatar: none
+position: Contributor
+badges: contributor
+active: true
+openToWork: true
+projects:
+  - gtk
+  - gnome-shell
+events: #refer: events.json for conference ids
+  - guadec-2021
+  - gnsummit-2015
+mentor: #GSoC/Outreachy mentors
+  - gsoc-2021
+  - gsoc-2020
+  - outreachy-2019
+mentee: #GSoC/Outreachy students
+  - gsoc-2021
+  - gsoc-2020
+  - outreachy-2019
+social:
+  blog: https://my.site
+  twitter: handle
+  gitlab: handle
+  matrix: handle #don't include @
+  instagram: handle
+  dev_to: handle
+  github: handle
+  mastodon: handle #don't include @
+  keybase: handle
