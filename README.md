@@ -9,7 +9,7 @@ This project contains the code for the markdown bot for the Faces of Gnome proje
 ```
 https://gitlab.com/api/v4/projects/YOUR_PROJECT_ID/ref/REF/trigger/pipeline?token=TOKEN&variables[ISSUE_BOT]=true
 ```
-5. The go to <b>Settings/ Webhooks</b> and create a new webhook with the issues event selected. Use the Url you created in the last step.
+5. Then go to <b>Settings/ Webhooks</b> and create a new webhook with the issues event selected. Use the Url you created in the last step.
 6. Test it by by clicking on the test button on your webhook and click on "issue event". If this is setup correctly then a new job should be started called proccess_issue.
 
 ## License
