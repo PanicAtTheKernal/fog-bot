@@ -1,10 +1,36 @@
 import gitlab
 import gitlab.v4.objects.projects
+import gitlab.v4.objects
 import os
 import sys
 from schema import Optional, And, Or, Schema, SchemaError
 import yaml
 from yaml.scanner import ScannerError
+
+
+class Response:
+    success: bool
+    message: str
+
+    def __init__(self, success, message):
+        self.success = success
+        self.message = message
+
+
+class IssueComment(Response):
+    labels: str
+
+    def __init__(self, success: bool, message: str, labels: str):
+        super().__init__(success, message)
+        self.labels = labels
+
+
+class YamlValidatorReturn(IssueComment):
+    yaml_obj: object
+
+    def __init__(self, success: bool, message: str, labels: str, yaml_obj):
+        super().__init__(success, message, labels)
+        self.yaml_obj = yaml_obj
 
 
 class GitlabBot:
@@ -17,10 +43,10 @@ class GitlabBot:
     _url: str
     _client: gitlab.Gitlab
 
-    def __init__(self):
+    def __init__(self, token: str, url: str):
         self.gitlab_handler = None
-        self._token = sys.argv[1]
-        self._url = sys.argv[3]
+        self._token = token
+        self._url = url
         self.start()
 
     def start(self) -> None:
@@ -34,157 +60,173 @@ class GitlabAPIHandler(GitlabBot):
     _project_id: str
     _project: gitlab.v4.objects.projects.Project
 
-    def __init__(self, project_id: str):
-        super().__init__()
+    def __init__(self, token: str, project_id: str, url: str):
+        super().__init__(token, url)
         self._project_id = project_id
+        self.retrieve_project()
 
     def get_project_id(self) -> str:
         return self._project_id
 
-    def retrive_project(self) -> None:
+    def get_project(self) -> gitlab.v4.objects.projects.Project:
+        return self._project
+
+    def retrieve_project(self) -> None:
         self._project = self._client.projects.get(id=int(self._project_id))
 
     def create_issue_handler(self, labels: list[str], state='opened',
                              order_by='created_at', sort='desc'):
-        if self._client is not None or self._project_id != '':
-            return GitlabIssues(self._client, self._project_id, labels, state,
-                                order_by, sort)
-        else:
-            print("Error!")
+        return GitlabIssuesHandler(self, labels, state, order_by, sort)
 
 
-class GitlabIssues:
-    __labels: list[str] = [""]
+class GitlabIssue:
+    __iid: str
+    __issue: gitlab.v4.objects.ProjectIssue
+
+    def __init__(self, project: gitlab.v4.objects.projects.Project, issue_iid: str):
+        self.__iid = issue_iid
+        self.__issue = project.issues.get(issue_iid)
+
+    def get_iid(self) -> str:
+        return self.__iid
+
+    def get_id(self) -> str:
+        return self.__issue.attributes['id']
+
+    def get_description(self) -> str:
+        return self.__issue.attributes['description']
+
+    def update_tags(self, new_labels: list[str]):
+        self.__issue.labels = new_labels
+        self.__issue.save()
+
+    def print_comment(self, message: str):
+        self.__issue.notes.create({'body': message})
+        self.__issue.save()
+        print("The issue has been updated")
+
+
+class GitlabIssuesHandler:
+    __issues: list[GitlabIssue]
+    __project: gitlab.v4.objects.projects.Project
+    __labels: list[str]
     __state: str = ""
     __order_by: str = ""
     __sort: str = ""
-    __issues = []
-    __project_id = ""
-    __project = None
-    __client = None
 
-    def __init__(self, client, project_id, labels: list[str], state='opened', order_by='created_at', sort='desc'):
+    def __init__(self, project: GitlabAPIHandler, labels: list[str], 
+                 state='opened', order_by='created_at', sort='desc'):
+        self.__project = project.get_project()
         self.__labels = labels
         self.__state = state
         self.__order_by = order_by
         self.__sort = sort
-        self.__project_id = project_id
-        self.__client = client
-        self.__project = self.__client.projects.get(id=int(self.__project_id))
+        self.__issues = []
+        self.__retrive_issues()
 
-    def request_issues(self):
-        self.__issues = self.__project.issues.list(labels=self.__labels,
-                                                   state=self.__state,
-                                                   order_by=self.__order_by,
-                                                   sort=self.__sort)
+    def __retrive_issues(self):
+        # Create a temporary list for storing iids to prevent duplicates
+        list_of_iid = []
+        for label in self.__labels:
+            results = self.__project.issues.list(labels=label,
+                                                 state=self.__state,
+                                                 order_by=self.__order_by,
+                                                 sort=self.__sort)
+            for result in results:
+                result_iid = result.attributes['iid']
+                if result_iid not in list_of_iid:
+                    list_of_iid.append(result_iid)
+                    new_issue = GitlabIssue(self.__project, result_iid)
+                    self.__issues.append(new_issue)
 
     def validate_issues(self):
         for issue in self.__issues:
-            yaml_result = YamlValidator(issue.attributes["description"]).validate_yaml()
-            self.print_comment(issue, yaml_result.message, yaml_result.labels)
-            if yaml_result.success:
-                ref = 'Profile-Request-{}'.format(str(issue.attributes['id']))
+            validate_yaml = YamlValidator(issue.get_description())
+            result = validate_yaml.validate_yaml()
+            issue.update_tags(result.labels)
+            issue.print_comment(result.message)
+            if result.success:
                 project_id = sys.argv[2]
-                mr = GitlabMergeRequest(yaml_result.yaml_obj, issue, self.__project, ref, project_id)
+                mr = GitlabMergeRequest(result.yaml_obj, issue.get_id(), self.__project)
                 mr.create_merge_request()
-
-    def print_comment(self, issue, message, labels):
-        issue_t = self.__project.issues.get(issue.attributes['iid'])
-        issue_t.labels = [labels]
-        issue_t.notes.create({'body': message})
-        issue_t.save()
-        print("The issue has been updated")
 
     def get_issues(self):
         return self.__issues
 
-    def set_labels(self, new_labels: list[str]):
-        self.__labels = new_labels
-
-    def get_labels(self):
-        return self.__labels
-
 
 class GitlabMergeRequest:
-    __target_branch = 'main'
-    __yaml_obj = None
-    __issue = None
-    __project = None
+    __target_branch: str = 'main'
+    __yaml_obj: object
+    __project: gitlab.v4.objects.projects.Project
     __id: str
-    __ref_branch: str
-    __target_project_id = ""
-    __source_project_id = ""
+    __target_project_id: str
 
-    def __init__(self, yaml_obj, issue, project, source_branch, target_id):
+    def __init__(self, yaml_obj: object, issue_id: str, project: gitlab.v4.objects.projects.Project):
         self.__yaml_obj = yaml_obj
-        self.__issue = issue
         self.__project = project
-        self.__id = issue.attributes['id']
-        self.__source_branch = source_branch
-        self.__target_project_id = target_id
+        self.__id = issue_id
+        self.__source_branch = 'Profile-Request-{}'.format(issue_id)
+        self.__target_project_id = project.get_id()
 
-    def create_merge_request(self):
+    def create_merge_request(self) -> None:
         branch = GitlabBranches(self.__project, "main", self.__id)
-        if branch.search_for_branch() is not []:
-            branch.create_new_branch()
+        branch.create_new_branch()
         try:
             commit = GitlabCommits(self.__yaml_obj, self.__project, self.__id)
-            data = commit.create_data()
-            commit.commit(data)
+            commit.create_commit()
             self.__project.mergerequests.create({'source_branch': self.__source_branch,
                                                  'target_branch': self.__target_branch,
                                                  'target_project_id': int(self.__target_project_id),
                                                  'source_project_id': int(self.__target_project_id),
                                                  'title': 'Profile request #{}'.format(self.__id)})
         except gitlab.GitlabCreateError as error:
-            print(error)
-
-    def retrieve_merge_request(self):
-        merge_requests = self.__project.mergerequsts.list()
-
-        for merge_request in merge_requests:
-            print(merge_request)
-
-        return merge_requests
+            print("Error creating merge request: {}".format(error))
 
 
 class GitlabBranches:
-    __project = None
+    __project: gitlab.v4.objects.projects.Project
     __ref_branch: str
     __id: str
 
-    def __init__(self, project, ref_branch, issue_id):
+    def __init__(self, project: gitlab.v4.objects.projects.Project, ref_branch: str, issue_id: str):
         self.__project = project
         self.__ref_branch = ref_branch
         self.__id = issue_id
 
-    def create_new_branch(self) -> bool:
-        try:
-            self.__project.branches.create({'branch': 'Profile-Request-{}'.format(self.__id),
-                                            'ref': self.__ref_branch})
-            return True
-        except gitlab.GitlabCreateError as error:
-            print(error)
-            return False
+    def create_new_branch(self) -> None:
+        if self.branch_not_exists():
+            try:
+                print('Profile-Request-{}'.format(self.__id))
+                self.__project.branches.create({'branch': 'Profile-Request-{}'.format(self.__id),
+                                                'ref': self.__ref_branch})
+            except gitlab.GitlabCreateError as error:
+                print("Error creating branch: {}".format(error))
+        else:
+            print("Error creating branch: Branch already exists")
 
-    def search_for_branch(self):
-        return self.__project.branches.list(search='Profile-Request-{}'.format(self.__id))
+    def branch_not_exists(self) -> bool:
+        branches = self.__project.branches.list(search='Profile-Request-{}'.format(self.__id))
+        if branches is []:
+            return False
+        else: 
+            return True
 
 
 class GitlabCommits:
-    __yaml_obj = None
-    __project = None
+    __yaml_obj: object
+    __project: gitlab.v4.objects.projects.Project
 
-    def __init__(self, yaml_obj, project, issue_id):
+    def __init__(self, yaml_obj: object, project: gitlab.v4.objects.projects.Project, 
+                 issue_id: str):
         self.__yaml_obj = yaml_obj
         self.__project = project
         self.__issue_id = issue_id
 
-    def create_data(self):
+    def create_commit(self) -> None:
         with open("{}.yml".format(self.__yaml_obj['id']), 'w+') as file:
             yaml.dump(self.__yaml_obj, file)
 
-            return {
+            data = {
                 'branch': 'Profile-Request-{}'.format(self.__issue_id),
                 'commit_message': 'Commit for profile request {}'.format(self.__yaml_obj["id"]),
                 'actions': [
@@ -196,34 +238,14 @@ class GitlabCommits:
                 ]
             }
 
-    def commit(self, data):
-        self.__project.commits.create(data)
+            self.commit(data)
+
+    def commit(self, data) -> None:
+        try:
+            self.__project.commits.create(data)
+        except Exception as e:
+            print('Error creating commit: {}'.format(e))
         os.remove(str(self.__yaml_obj["id"])+'.yml')
-
-
-class Response:
-    success: bool
-    message: str
-
-    def __init__(self, success, message) -> None:
-        self.success = success
-        self.message = message
-
-
-class IssueComment(Response):
-    labels: str
-
-    def __init__(self, success: bool, message: str, labels: str) -> None:
-        super().__init__(success, message)
-        self.labels = labels
-
-
-class YamlValidatorReturn(IssueComment):
-    yaml_obj: object
-
-    def __init__(self, success: bool, message: str, labels: str, yaml_obj) -> None:
-        super().__init__(success, message, labels)
-        self.yaml_obj = yaml_obj
 
 
 class YamlValidator:
@@ -266,7 +288,6 @@ class YamlValidator:
         }
     })
     __issue_description = ""
-    __issue = None
 
     def __init__(self, issue_description: str):
         self.__issue_description = issue_description
@@ -286,14 +307,14 @@ class YamlValidator:
         try:
             self.__config_schema.validate(yaml_obj)
             print("Configuration is valid.")
-            message = "A merge request has been created for you. Please wait for a moderator to accept your user " \
-                      "profile"
+            message = "A merge request has been created for you. Please wait" \
+                      "for a moderator to accept your user profile"
             label_t = "Request Created"
             return_obj = YamlValidatorReturn(True, message, label_t, yaml_obj)
             return return_obj
         except SchemaError as se:
             print(se)
-            message = str(se)
+            message = "Please follow the template. Error:" + str(se)
             label_t = 'Changes Requested'
             new_comment = YamlValidatorReturn(False, message, label_t, None)
             return new_comment
@@ -314,12 +335,11 @@ def check_for_at_symbol(tag: str) -> bool:
 
 
 if __name__ == '__main__':
-    # There sould be 4 arguments. 1. API Key 2. Project ID 3. Project URL 
+    fogbot_labels = ['Profile Request', 'Changes Requested']
     target_project_id = sys.argv[2]
-    fogbot = GitlabBot(url='https://gitlab.com')
-    fogbot.start()
-    fogbot.gitlab_handler.set_project_id(target_project_id)
-    label = ['Profile Request']
-    fogbot_issues = fogbot.gitlab_handler.create_issue_handler(label)
-    fogbot_issues.request_issues()
+
+    # There sould be 4 arguments. 1. API Key 2. Project ID 3. Project URL 
+    fogbot = GitlabAPIHandler(sys.argv[1],target_project_id, sys.argv[3])
+    fogbot_issues = fogbot.create_issue_handler(fogbot_labels)
     fogbot_issues.validate_issues()
+    my_issues = fogbot_issues.get_issues()

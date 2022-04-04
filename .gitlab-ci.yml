@@ -24,10 +24,10 @@ before_script:
   - pip install schema
 
 process_issues:
-  image: python:latest
+  image: python:3.10-apline3.15
   tags:
     - gitlab-org
   script:
-    - python gitlab-bot.py $API_KEY $CI_PROJECT_ID
+    - python gitlabbot.py $API_KEY $CI_PROJECT_ID https://gitlab.com 
   rules:
     - if: $CI_PIPELINE_SOURCE == "trigger" && $ISSUE_BOT
